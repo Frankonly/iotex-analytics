@@ -193,6 +193,7 @@ func (p *Protocol) GetHermesBookkeeping(startEpoch uint64, epochCount uint64, re
 			}
 			totalRewards := new(big.Int).Set(rewards.BlockReward)
 			totalRewards.Add(totalRewards, rewards.EpochReward).Add(totalRewards, rewards.FoundationBonus)
+			fmt.Printf("Total Earned Rewards: %s\n", totalRewards.String())
 			balanceAfterDistributionMap[delegate].Add(balanceAfterDistributionMap[delegate], totalRewards)
 
 			if distributePlan.TotalWeightedVotes.Sign() == 0 {
@@ -203,28 +204,37 @@ func (p *Protocol) GetHermesBookkeeping(startEpoch uint64, epochCount uint64, re
 			if distributePlan.BlockRewardPercentage > 0 {
 				distrBlockReward := new(big.Int).Set(rewards.BlockReward)
 				distrBlockReward.Mul(distrBlockReward, big.NewInt(int64(distributePlan.BlockRewardPercentage))).Div(distrBlockReward, big.NewInt(100))
+				fmt.Printf("Distributed Block Reward: %s\n", distrBlockReward)
 				distrReward.Add(distrReward, distrBlockReward)
 			}
 			if distributePlan.EpochRewardPercentage > 0 {
 				distrEpochReward := new(big.Int).Set(rewards.EpochReward)
 				distrEpochReward.Mul(distrEpochReward, big.NewInt(int64(distributePlan.EpochRewardPercentage))).Div(distrEpochReward, big.NewInt(100))
+				fmt.Printf("Distributed Epoch Reward: %s\n", distrEpochReward)
 				distrReward.Add(distrReward, distrEpochReward)
 			}
 			if distributePlan.FoundationBonusPercentage > 0 {
 				distrFoundationBonus := new(big.Int).Set(rewards.FoundationBonus)
 				distrFoundationBonus.Mul(distrFoundationBonus, big.NewInt(int64(distributePlan.FoundationBonusPercentage))).Div(distrFoundationBonus, big.NewInt(100))
+				fmt.Printf("Distributed Foundation Bonus: %s\n", distrFoundationBonus)
 				distrReward.Add(distrReward, distrFoundationBonus)
 			}
 
+			totalAmount := big.NewInt(0)
 			for voterAddr, weightedVotes := range voterMap {
 				amount := new(big.Int).Set(distrReward)
+				fmt.Printf("Weighted Votes: %s\n", weightedVotes.String())
+				fmt.Printf("Total Weighted Votes: %s\n", distributePlan.TotalWeightedVotes.String())
 				amount = amount.Mul(amount, weightedVotes).Div(amount, distributePlan.TotalWeightedVotes)
+				totalAmount.Add(totalAmount, amount)
+				fmt.Printf("Distributed Amount: %s\n", amount)
 				if _, ok := voterAddrToReward[voterAddr]; !ok {
 					voterAddrToReward[voterAddr] = big.NewInt(0)
 				}
 				voterAddrToReward[voterAddr].Add(voterAddrToReward[voterAddr], amount)
 				balanceAfterDistributionMap[delegate].Sub(balanceAfterDistributionMap[delegate], amount)
 			}
+			fmt.Printf("Total Distributed Rewards: %s\n", totalAmount.String())
 		}
 	}
 
@@ -690,14 +700,10 @@ func parseDistributionPlanFromVotingResult(rows *sql.Rows) (map[uint64]map[strin
 }
 
 // stringToBigInt transforms a string to big int
-func stringToBigInt(estr string) (ret *big.Int, err error) {
-	// convert string like this:2.687455198114428e+21
-	retFloat, _, err := new(big.Float).Parse(estr, 10)
-	if err != nil {
-		err = errors.Wrap(err, "failed to parse string to big float")
-		return
+func stringToBigInt(estr string) (*big.Int, error) {
+	ret, ok := big.NewInt(0).SetString(estr, 10)
+	if !ok {
+		return nil, errors.New("failed to parse string to big int")
 	}
-	ret = new(big.Int)
-	retFloat.Int(ret)
-	return
+	return ret, nil
 }
